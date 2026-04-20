@@ -3,11 +3,61 @@
     <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/0.9.4/angular-material.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=RobotoDraft:300,400,500,700,400italic">
     <meta name="viewport" content="initial-scale=1" />
+    <style>
+      .award-winning-link {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 16px;
+        background: rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 100px;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.75rem;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        text-decoration: none;
+        text-transform: uppercase;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        backdrop-filter: blur(4px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+      }
+      .award-winning-link:hover {
+        background: rgba(0, 0, 0, 0.8);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      }
+      .award-winning-link:active {
+        transform: translateY(0);
+      }
+      .award-winning-link::before {
+        content: '';
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        background: #10b981;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.5); opacity: 0.5; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+    </style>
   </head>
   <body>
     <div layout="column" style="margin-top: 20px; width: 80%" offset="10" ng-controller="AppCtrl">
       <md-toolbar layout="row" layout-align="space-around center">
-        <h1 class="md-display-2">Performance Dashboard</h1>
+        <h1 class="md-display-2" style="margin: 0;">Performance Dashboard</h1>
+        <a id="switchDashboardLink" class="award-winning-link">Try V2</a>
         <!-- TODO: Need a better logo here -->
         <a href="https://k8s.io"><img src="k8s_logo.png" style="width:84; height: 84" /></a>
       </md-toolbar>
@@ -67,6 +117,7 @@
       <script src="Chart.js"></script>
       <script src="angular-chart.js"></script>
       <script src="script.js"></script>
+    <a id="switchDashboardLink" ng-href="{{controller.v2Link}}" class="award-winning-link">Try V2</a>
     </div>
   </body>
 </html>

@@ -29,6 +29,7 @@ var PerfDashApp = function(http, scope, route) {
     this.currentCall = 0;
     this.scope.$on('$routeChangeSuccess', this.routeChanged.bind(this));
     this.lastCall = {jobname: "", metriccategoryname: "", metricname: "", time: Date.now()};
+    this.routeChanged();
 };
 
 
@@ -73,8 +74,18 @@ PerfDashApp.prototype.refresh = function() {
     });
 };
 
+PerfDashApp.prototype.getQueryParams = function() {
+    var params = this.route.current.params;
+    var str = [];
+    angular.forEach(params, function(value, key) {
+        if (value) str.push(encodeURIComponent(key) + "=" + encodeURIComponent(value));
+    });
+    return str.length > 0 ? "?" + str.join("&") : "";
+};
+
 // Update the select drop-downs based on the query params.
 PerfDashApp.prototype.routeChanged = function(event, data) {
+    if (!this.route.current) return;
     var app = this;
     angular.forEach(this.route.current.params, function(value, name) {
         switch (name) {
@@ -101,6 +112,7 @@ PerfDashApp.prototype.routeChanged = function(event, data) {
         }
     });
     this.labelChanged();
+    this.v2Link = "/v2/" + this.getQueryParams();
 }
 
 // Update the data to graph, using the selected jobName

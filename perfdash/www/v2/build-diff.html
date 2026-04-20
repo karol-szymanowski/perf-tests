@@ -1,0 +1,277 @@
+<html lang="en" ng-app="PerfDashApp">
+
+<head>
+  <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/0.9.4/angular-material.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=RobotoDraft:300,400,500,700,400italic">
+  <meta name="viewport" content="initial-scale=1" />
+  <style>
+    .award-winning-link {
+      display: inline-flex;
+      padding: 8px 16px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 100px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+    }
+
+    .award-winning-link:hover {
+      background: rgba(0, 0, 0, 0.8);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .control-container {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+      box-sizing: border-box;
+    }
+    .control-section {
+      margin-bottom: 15px;
+    }
+    .control-header {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .minimal-input {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    .minimal-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .select-minimal {
+      font-size: 0.85rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 10px;
+      background: #fff;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+    .select-minimal:focus {
+      border-color: #3b82f6;
+    }
+    html {
+      height: 100%;
+    }
+    body {
+      font-family: 'RobotoDraft', 'Roboto', sans-serif;
+      margin: 0;
+      color: #1e293b;
+      min-height: 100%;
+      background-color: #f8fafc;
+    }
+    .main-container {
+      max-width: 1600px;
+      margin: 40px auto;
+      padding: 0 20px 40px 20px;
+    }
+    .app-header {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .app-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.025em;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .data-table th, .data-table td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .data-table th {
+      background-color: #f1f5f9;
+      font-weight: 600;
+      color: #475569;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .data-table tr:hover {
+      background-color: #f8fafc;
+    }
+    .diff-positive {
+      color: #10b981; /* Green */
+      font-weight: 600;
+    }
+    .diff-negative {
+      color: #ef4444; /* Red */
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+  <div ng-controller="AppCtrl" style="min-height: 100vh;">
+    <header class="app-header">
+      <h1 class="app-title">Performance Dashboard - Build Diff</h1>
+      <a href="https://k8s.io"><img src="../k8s_logo.png" style="width:40px; height: 40px;" /></a>
+    </header>
+
+    <div class="main-container">
+      <div style="margin-bottom: 20px;">
+        <a href="index.html" style="color: #3b82f6; text-decoration: none;">← Back to Main Dashboard</a>
+      </div>
+
+      <!-- Controls -->
+      <div class="control-container">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <div class="control-section" style="flex: 2; min-width: 250px;">
+            <div class="control-header">Scenario (Job)</div>
+            <select ng-model="controller.resolvedJob" ng-options="job for job in controller.jobNames" ng-change="controller.onScenarioChange()" class="select-minimal">
+              <option value="">Select Scenario</option>
+            </select>
+          </div>
+
+          <div class="control-section" style="flex: 2; min-width: 250px;">
+            <div class="control-header">Target Run (Build ID)</div>
+            <select ng-model="controller.buildId" ng-options="build.id as build.label for build in controller.recentBuilds" ng-change="controller.calculateDiffs()" class="select-minimal" ng-disabled="!controller.resolvedJob">
+              <option value="">Select Run</option>
+            </select>
+          </div>
+
+          <div class="control-section" style="flex: 1; min-width: 150px;">
+            <div class="control-header">Aggregation Method</div>
+            <select ng-model="controller.aggMethod" ng-change="controller.calculateDiffs()" class="select-minimal">
+              <option value="median">Median (Recommended)</option>
+              <option value="average">Average</option>
+            </select>
+          </div>
+
+          <div class="control-section" style="flex: 1; min-width: 100px;">
+            <div class="control-header">Last N Runs</div>
+            <input type="number" ng-model="controller.limitBuilds" ng-change="controller.calculateDiffs()" min="1" class="minimal-input" style="text-align: center;">
+          </div>
+
+          <div class="control-section" style="flex: 1; min-width: 200px; display: flex; align-items: flex-end; padding-bottom: 5px;">
+            <label style="display: flex; align-items: center; font-size: 0.85rem; cursor: pointer; color: #475569;">
+              <input type="checkbox" ng-model="controller.filterFailed" ng-change="controller.calculateDiffs()" style="margin-right: 8px;">
+              Filter out failed builds
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div ng-if="controller.loading" style="text-align: center; margin-top: 50px; color: #64748b;">
+        <h3>Loading data...</h3>
+      </div>
+
+      <div ng-if="controller.error" style="text-align: center; margin-top: 50px; color: #ef4444;">
+        <h3>{{controller.error}}</h3>
+      </div>
+
+      <!-- Expand/Collapse Controls -->
+      <div ng-if="!controller.loading && !controller.error && controller.diffResults.length > 0" style="margin-bottom: 15px; display: flex; gap: 10px;">
+        <button ng-click="controller.expandAll()" style="background: #334155; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: background 0.2s;">Expand All</button>
+        <button ng-click="controller.collapseAll()" style="background: #64748b; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: background 0.2s;">Collapse All</button>
+      </div>
+
+      <!-- Results Table -->
+      <div ng-if="!controller.loading && !controller.error && controller.diffResults.length > 0" style="overflow-x: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Variation (Labels)</th>
+              <th>Build {{controller.buildId}}</th>
+              <th>Aggregate ({{controller.aggMethod}})</th>
+              <th>Raw Diff</th>
+              <th>Diff %</th>
+            </tr>
+          </thead>
+          <tbody ng-repeat="row in controller.diffResults">
+            <tr ng-if="row.isHeader" 
+                style="background-color: #e2e8f0; font-weight: 700; color: #1e293b; font-size: 0.9rem;">
+              <td colspan="6" style="padding: 10px 15px;">
+                {{row.category}}
+              </td>
+            </tr>
+            <tr ng-if="row.isSubHeader" 
+                ng-click="controller.toggleMetric(row.category, row.metric)" 
+                style="background-color: #f8fafc; font-weight: 600; color: #475569; font-size: 0.85rem; cursor: pointer; border-bottom: 1px solid #e2e8f0;">
+              <td colspan="6" style="padding: 8px 15px 8px 30px; border-bottom: 1px solid #e2e8f0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>{{controller.collapsedMetrics[row.category + '_' + row.metric] ? '▶' : '▼'}} {{row.metric}}</span>
+                  <span style="font-size: 0.8rem; font-weight: 600; padding: 4px 8px; border-radius: 4px; color: #1e293b;" 
+                        ng-style="{'background-color': 'rgba(239, 68, 68, ' + row.alpha + ')'}">
+                    Max Skew: {{row.maxSkew | number:2}}%
+                  </span>
+                </div>
+              </td>
+            </tr>
+            <tr ng-if="!row.isHeader && !row.isSubHeader" ng-show="!controller.collapsedMetrics[row.category + '_' + row.metricName]">
+              <td style="font-weight: 500; color: #334155; padding-left: 40px;">{{row.metric}}</td>
+              <td style="color: #64748b; font-size: 0.85rem;">{{row.labels}}</td>
+              <td style="font-weight: 600;">{{row.buildVal | number:2}} {{row.unit}}</td>
+              <td style="color: #475569;">{{row.aggVal | number:2}} {{row.unit}}</td>
+              <td ng-style="row.diff > 0 ? {'background-color': 'rgba(16, 185, 129, ' + row.alpha + ')'} : {'background-color': 'rgba(239, 68, 68, ' + row.alpha + ')'}">
+                {{row.diff > 0 ? '+' : ''}}{{row.diff | number:2}}
+              </td>
+              <td ng-style="row.diffPct > 0 ? {'background-color': 'rgba(16, 185, 129, ' + row.alpha + ')'} : {'background-color': 'rgba(239, 68, 68, ' + row.alpha + ')'}">
+                {{row.diffPct > 0 ? '+' : ''}}{{row.diffPct | number:2}}%
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div ng-if="!controller.loading && !controller.error && controller.diffResults.length === 0 && controller.buildId" style="text-align: center; margin-top: 50px; color: #64748b;">
+        No data found for Build ID {{controller.buildId}} in the resolved scenario.
+      </div>
+    </div>
+  </div>
+
+  <!-- Angular Material Dependencies -->
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular-animate.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular-aria.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular-route.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angular_material/0.9.4/angular-material.min.js"></script>
+
+  <script src="build-diff-script.js"></script>
+</body>
+
+</html>

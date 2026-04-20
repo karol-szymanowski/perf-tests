@@ -110,10 +110,10 @@ func run() error {
 	}
 
 	downloader := NewDownloader(options, metricsBucket, *allowParsersForAllTests)
-	result := make(JobToCategoryData)
+	dataServer := NewDataServer()
 
 	if !*www {
-		result, err = downloader.getData()
+		result, err := downloader.getData()
 		if err != nil {
 			return fmt.Errorf("fetching data failed: %v", err)
 		}
@@ -128,12 +128,13 @@ func run() error {
 	go func() {
 		for {
 			klog.Infof("Fetching new data...")
-			result, err = downloader.getData()
+			result, err := downloader.getData()
 			if err != nil {
 				klog.Errorf("Error fetching data: %v", err)
 				time.Sleep(errorDelay)
 				continue
 			}
+			dataServer.SetData(result)
 			klog.Infof("Data fetched, sleeping %v...", *syncInterval)
 			time.Sleep(*syncInterval)
 		}
@@ -141,10 +142,11 @@ func run() error {
 
 	klog.Infof("Starting server...")
 	http.Handle("/", http.FileServer(http.Dir(*wwwDir)))
-	http.HandleFunc("/jobnames", result.ServeJobNames)
-	http.HandleFunc("/metriccategorynames", result.ServeCategoryNames)
-	http.HandleFunc("/metricnames", result.ServeMetricNames)
-	http.HandleFunc("/buildsdata", result.ServeBuildsData)
+	http.HandleFunc("/jobnames", dataServer.ServeJobNames)
+	http.HandleFunc("/metriccategorynames", dataServer.ServeCategoryNames)
+	http.HandleFunc("/metricnames", dataServer.ServeMetricNames)
+	http.HandleFunc("/buildsdata", dataServer.ServeBuildsData)
+	http.HandleFunc("/allbuildsdata", dataServer.ServeAllBuildsData)
 	http.HandleFunc("/config", serveConfig)
 	return http.ListenAndServe(*addr, nil)
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -158,8 +159,37 @@ func (g *Downloader) getJobData(wg *sync.WaitGroup, result JobToCategoryData, re
 	sort.Sort(sort.Reverse(sort.IntSlice(buildNumbers)))
 	for index := 0; index < buildsToFetch && index < len(buildNumbers); index++ {
 		buildNumber := buildNumbers[index]
+		status := "SUCCESS"
+		finishedData, err := g.MetricsBkt.ReadFile(job, buildNumber, "finished.json")
+		if err == nil {
+			var res struct {
+				Result string `json:"result"`
+			}
+			if err := json.Unmarshal(finishedData, &res); err == nil {
+				status = res.Result
+				klog.Infof("finished.json result for %s build %v: %s", job, buildNumber, status)
+			}
+		} else {
+			klog.Infof("Error when reading finished.json for %s build %v: %v", job, buildNumber, err)
+		}
+		var timestamp int64
+		startedData, err := g.MetricsBkt.ReadFile(job, buildNumber, "started.json")
+		if err == nil {
+			var res struct {
+				Timestamp int64 `json:"timestamp"`
+			}
+			if err := json.Unmarshal(startedData, &res); err == nil {
+				timestamp = res.Timestamp
+			}
+		}
 		cache := newArtifactsCache(g.MetricsBkt)
 		klog.Infof("Fetching %s build %v...", job, buildNumber)
+		files, err := g.MetricsBkt.ListFilesInBuild(job, buildNumber, "")
+		if err == nil {
+			klog.Infof("Files in build %v: %v", buildNumber, files)
+		} else {
+			klog.Infof("Error listing files in build %v: %v", buildNumber, err)
+		}
 		for categoryLabel, categoryMap := range tests.Descriptions {
 			for testLabel, testDescriptions := range categoryMap {
 				for _, testDescription := range testDescriptions {
@@ -192,6 +222,8 @@ func (g *Downloader) getJobData(wg *sync.WaitGroup, result JobToCategoryData, re
 							testLabel = strings.Split(trimmed, "_")[0]
 						}
 						buildData := getBuildData(result, tests.Prefix, resultCategory, testLabel, job, resultLock)
+						buildData.BuildStatus[strconv.Itoa(buildNumber)] = status
+						buildData.BuildTimestamps[strconv.Itoa(buildNumber)] = timestamp
 						testDescription.Parser(testDataResponse, buildNumber, buildData)
 					}
 				}
@@ -217,16 +249,22 @@ func getResultCategory(metricsFileName string, filePrefix string, category strin
 func getBuildData(result JobToCategoryData, prefix string, category string, label string, job string, resultLock *sync.Mutex) *BuildData {
 	resultLock.Lock()
 	defer resultLock.Unlock()
-	if _, found := result[prefix]; !found {
-		result[prefix] = make(CategoryToMetricData)
+	if _, found := result[job]; !found {
+		result[job] = make(CategoryToMetricData)
 	}
-	if _, found := result[prefix][category]; !found {
-		result[prefix][category] = make(MetricToBuildData)
+	if _, found := result[job][category]; !found {
+		result[job][category] = make(MetricToBuildData)
 	}
-	if _, found := result[prefix][category][label]; !found {
-		result[prefix][category][label] = &BuildData{Job: job, Version: "", Builds: NewBuilds(map[string][]perftype.DataItem{})}
+	if _, found := result[job][category][label]; !found {
+		result[job][category][label] = &BuildData{
+			Job:             job,
+			Version:         "",
+			Builds:          NewBuilds(map[string][]perftype.DataItem{}),
+			BuildStatus:     make(map[string]string),
+			BuildTimestamps: make(map[string]int64),
+		}
 	}
-	return result[prefix][category][label]
+	return result[job][category][label]
 }
 
 // MetricsBucket is the interface that fetches data from a storage service.

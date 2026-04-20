@@ -258,7 +258,7 @@ func Test_BuildDataToJson(t *testing.T) {
 				},
 			}),
 			},
-			want: `{"builds":{"123":[{"data":{"c1":2,"c2":1},"unit":"unit","labels":{"RestartCount":"RestartCount"}}]},"job":"job","version":"version"}`,
+			want: `{"builds":{"123":[{"data":{"c1":2,"c2":1},"unit":"unit","labels":{"RestartCount":"RestartCount"}}]},"job":"job","version":"version","buildStatus":null,"buildTimestamps":null}`,
 		},
 	}
 

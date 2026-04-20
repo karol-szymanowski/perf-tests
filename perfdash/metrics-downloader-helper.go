@@ -29,9 +29,11 @@ import (
 
 // BuildData contains job name and a map from build number to perf data.
 type BuildData struct {
-	Builds  Builds `json:"builds"`
-	Job     string `json:"job"`
-	Version string `json:"version"`
+	Builds          Builds            `json:"builds"`
+	Job             string            `json:"job"`
+	Version         string            `json:"version"`
+	BuildStatus     map[string]string `json:"buildStatus"`
+	BuildTimestamps map[string]int64  `json:"buildTimestamps"`
 }
 
 // Builds is a structure contains build number to perf data map guarded against concurent modification
@@ -82,6 +84,23 @@ type CategoryToMetricData map[string]MetricToBuildData
 // JobToCategoryData is a map from job name to CategoryToMetricData.
 type JobToCategoryData map[string]CategoryToMetricData
 
+type DataServer struct {
+	data JobToCategoryData
+	mu   sync.RWMutex
+}
+
+func NewDataServer() *DataServer {
+	return &DataServer{
+		data: make(JobToCategoryData),
+	}
+}
+
+func (d *DataServer) SetData(data JobToCategoryData) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.data = data
+}
+
 func serveHTTPObject(res http.ResponseWriter, _ *http.Request, obj interface{}) {
 	data, err := json.Marshal(obj)
 	if err != nil {
@@ -110,10 +129,13 @@ func getURLParam(req *http.Request, name string) (string, bool) {
 }
 
 // ServeJobNames serves all available job names.
-func (j *JobToCategoryData) ServeJobNames(res http.ResponseWriter, req *http.Request) {
+// ServeJobNames serves all available job names.
+func (d *DataServer) ServeJobNames(res http.ResponseWriter, req *http.Request) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	jobNames := make([]string, 0)
-	if j != nil {
-		for k := range *j {
+	if d.data != nil {
+		for k := range d.data {
 			jobNames = append(jobNames, k)
 		}
 	}
@@ -122,14 +144,16 @@ func (j *JobToCategoryData) ServeJobNames(res http.ResponseWriter, req *http.Req
 }
 
 // ServeCategoryNames serves all available category names for given job.
-func (j *JobToCategoryData) ServeCategoryNames(res http.ResponseWriter, req *http.Request) {
+func (d *DataServer) ServeCategoryNames(res http.ResponseWriter, req *http.Request) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	jobname, ok := getURLParam(req, "jobname")
 	if !ok {
 		klog.Warningf("url Param 'jobname' is missing")
 		return
 	}
 
-	tests, ok := (*j)[jobname]
+	tests, ok := d.data[jobname]
 	if !ok {
 		klog.Infof("unknown jobname - %v", jobname)
 		return
@@ -144,7 +168,9 @@ func (j *JobToCategoryData) ServeCategoryNames(res http.ResponseWriter, req *htt
 }
 
 // ServeMetricNames serves all available metric names for given job and category.
-func (j *JobToCategoryData) ServeMetricNames(res http.ResponseWriter, req *http.Request) {
+func (d *DataServer) ServeMetricNames(res http.ResponseWriter, req *http.Request) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	jobname, ok := getURLParam(req, "jobname")
 	if !ok {
 		klog.Warningf("Url Param 'jobname' is missing")
@@ -156,7 +182,7 @@ func (j *JobToCategoryData) ServeMetricNames(res http.ResponseWriter, req *http.
 		return
 	}
 
-	categories, ok := (*j)[jobname]
+	categories, ok := d.data[jobname]
 	if !ok {
 		klog.Infof("unknown jobname - %v", jobname)
 		return
@@ -176,7 +202,9 @@ func (j *JobToCategoryData) ServeMetricNames(res http.ResponseWriter, req *http.
 }
 
 // ServeBuildsData serves builds data for given job name, category name and test name.
-func (j *JobToCategoryData) ServeBuildsData(res http.ResponseWriter, req *http.Request) {
+func (d *DataServer) ServeBuildsData(res http.ResponseWriter, req *http.Request) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	jobname, ok := getURLParam(req, "jobname")
 	if !ok {
 		klog.Warningf("Url Param 'jobname' is missing")
@@ -193,7 +221,7 @@ func (j *JobToCategoryData) ServeBuildsData(res http.ResponseWriter, req *http.R
 		return
 	}
 
-	categories, ok := (*j)[jobname]
+	categories, ok := d.data[jobname]
 	if !ok {
 		klog.Infof("unknown jobname - %v", jobname)
 		return
@@ -210,4 +238,11 @@ func (j *JobToCategoryData) ServeBuildsData(res http.ResponseWriter, req *http.R
 	}
 
 	serveHTTPObject(res, req, builds)
+}
+
+// ServeAllBuildsData serves all builds data for all jobs, categories and metrics.
+func (d *DataServer) ServeAllBuildsData(res http.ResponseWriter, req *http.Request) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	serveHTTPObject(res, req, d.data)
 }
