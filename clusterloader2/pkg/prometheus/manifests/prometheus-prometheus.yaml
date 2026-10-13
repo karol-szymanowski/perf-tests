@@ -9,6 +9,14 @@
 {{$PROMETHEUS_PVC_STORAGE_CLASS := DefaultParam .PROMETHEUS_PVC_STORAGE_CLASS "ssd"}}
 {{$PROMETHEUS_MEMORY_REQUEST := DefaultParam .PROMETHEUS_MEMORY_REQUEST "10Gi"}}
 {{$PROMETHEUS_KUBELET_MEMORY_SCALE_FACTOR := DefaultParam .CL2_PROMETHEUS_KUBELET_MEMORY_SCALE_FACTOR 10}}
+{{$PROMETHEUS_VERSION := DefaultParam .CL2_PROMETHEUS_VERSION "v3.15.0"}}
+{{$PROMETHEUS_IMAGE := DefaultParam .CL2_PROMETHEUS_IMAGE ""}}
+{{$PROMETHEUS_QUERY_TIMEOUT := DefaultParam .CL2_PROMETHEUS_QUERY_TIMEOUT "2m"}}
+{{$PROMETHEUS_QUERY_MAX_CONCURRENCY := DefaultParam .CL2_PROMETHEUS_QUERY_MAX_CONCURRENCY 20}}
+{{$PROMETHEUS_PVC_SIZE_FACTOR := DefaultParam .CL2_PROMETHEUS_PVC_SIZE_FACTOR 10}}
+{{$PROMETHEUS_RETENTION := DefaultParam .CL2_PROMETHEUS_RETENTION "7d"}}
+{{$PROMETHEUS_RETENTION_SIZE := DefaultParam .CL2_PROMETHEUS_RETENTION_SIZE ""}}
+{{$PROMETHEUS_CPU_LIMIT := DefaultParam .CL2_PROMETHEUS_CPU_LIMIT ""}}
 
 apiVersion: monitoring.coreos.com/v1
 kind: Prometheus
@@ -20,7 +28,16 @@ metadata:
 spec:
   logLevel: debug
   enableAdminAPI: true
+  # Prometheus v3 compatibility:
+  # - Scrape responses without a parseable Content-Type require scrapeFallbackProtocol (PrometheusText0.0.4).
+  # - UTF-8 metric and label name support, lower memory footprint.
+  # - Removed legacy flags such as --storage.tsdb.retention (handled automatically by the operator).
+  scrapeFallbackProtocol: PrometheusText0.0.4
+  {{if $PROMETHEUS_IMAGE}}
+  image: {{$PROMETHEUS_IMAGE}}
+  {{else}}
   baseImage: gcr.io/k8s-testimages/quay.io/prometheus/prometheus
+  {{end}}
   nodeSelector:
     kubernetes.io/os: linux
     {{StructuralData $PROMETHEUS_NODE_SELECTOR}}
@@ -36,6 +53,9 @@ spec:
       memory: {{MultiplyInt $PROMETHEUS_MEMORY_SCALE_FACTOR (AddInt 1 (DivideInt .Nodes 1000))}}Gi
       {{end}}
     limits:
+      {{if $PROMETHEUS_CPU_LIMIT}}
+      cpu: {{$PROMETHEUS_CPU_LIMIT}}
+      {{end}}
       {{if $PROMETHEUS_SCRAPE_KUBELETS}}
       # Kubelet + cAdvisor scraping is memory-heavy; scale ~10Gi per 1K nodes (10Gi floor below 1K).
       memory: {{MultiplyInt $PROMETHEUS_KUBELET_MEMORY_SCALE_FACTOR (AddInt 1 (DivideInt .Nodes 1000))}}Gi
@@ -68,8 +88,11 @@ spec:
   podMonitorNamespaceSelector: {}
   podMonitorSelector: {}
   priorityClassName: system-node-critical
-  version: v2.40.0
-  retention: 7d
+  version: {{$PROMETHEUS_VERSION}}
+  retention: {{$PROMETHEUS_RETENTION}}
+  {{if $PROMETHEUS_RETENTION_SIZE}}
+  retentionSize: {{$PROMETHEUS_RETENTION_SIZE}}
+  {{end}}
   {{if $PROMETHEUS_PVC_ENABLED}}
   # We add node tolerations for control-plane nodes in Azure Windows test jobs which do not support Google PD
   storage:
@@ -79,10 +102,12 @@ spec:
         resources:
           requests:
             # Start with 10Gi, add 10Gi for each 1K nodes.
-            storage: {{MultiplyInt 10 (AddInt 1 (DivideInt .Nodes 1000))}}Gi
+            storage: {{MultiplyInt $PROMETHEUS_PVC_SIZE_FACTOR (AddInt 1 (DivideInt .Nodes 1000))}}Gi
   {{ end }}
   query:
     maxSamples: 100000000
+    timeout: {{$PROMETHEUS_QUERY_TIMEOUT}}
+    maxConcurrency: {{$PROMETHEUS_QUERY_MAX_CONCURRENCY}}
   {{if $PROMETHEUS_SCRAPE_WINDOWS_NODES}}
   additionalScrapeConfigs:
     name: windows-scrape-configs
