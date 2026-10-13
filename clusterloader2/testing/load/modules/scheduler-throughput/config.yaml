@@ -12,6 +12,7 @@
 ## CL2 params
 {{$SCHEDULER_THROUGHPUT_THRESHOLD := DefaultParam .CL2_SCHEDULER_THROUGHPUT_THRESHOLD 100}}
 {{$CHECK_IF_PODS_ARE_UPDATED := DefaultParam .CL2_CHECK_IF_PODS_ARE_UPDATED true}}
+{{$SCHEDULER_THROUGHPUT_OPERATION_TIMEOUT := DefaultParam .CL2_SCHEDULER_THROUGHPUT_OPERATION_TIMEOUT "20m"}}
 
 
 {{$deploymentImage := DefaultParam .deploymentImage (Concat .ImageRegistry "/pause:3.9")}}
@@ -36,7 +37,7 @@ steps:
       labelSelector: group = scheduler-throughput
       # The operation timeout shouldn't be less than 20m to make sure that ~10m node
       # failure won't fail the test. See https://github.com/kubernetes/kubernetes/issues/73461#issuecomment-467338711
-      operationTimeout: 20m
+      operationTimeout: {{$SCHEDULER_THROUGHPUT_OPERATION_TIMEOUT}}
   - Identifier: SchedulingThroughput
     Method: SchedulingThroughput
     Params:

@@ -15,6 +15,7 @@
 {{$LATENCY_POD_MEMORY := DefaultParam .CL2_LATENCY_POD_MEMORY 200}}
 {{$LATENCY_POD_COUNT := DefaultParam .CL2_LATENCY_POD_COUNT $minPodsInSmallCluster}}
 {{$SCHEDULER_NAME := DefaultParam .CL2_SCHEDULER_NAME "default-scheduler"}}
+{{$POD_STARTUP_LATENCY_OPERATION_TIMEOUT := DefaultParam .CL2_POD_STARTUP_LATENCY_OPERATION_TIMEOUT "15m"}}
 
 ## Variables
 {{$latencyReplicas := Ceil (DivideFloat $LATENCY_POD_COUNT $namespaces)}}
@@ -38,7 +39,7 @@ steps:
         apiVersion: apps/v1
         kind: Deployment
         labelSelector: group = latency
-        operationTimeout: 15m
+        operationTimeout: {{$POD_STARTUP_LATENCY_OPERATION_TIMEOUT}}
 - name: Creating latency pods
   phases:
     - namespaceRange:
