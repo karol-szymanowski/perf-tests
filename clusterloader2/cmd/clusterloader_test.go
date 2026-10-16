@@ -17,9 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"k8s.io/perf-tests/clusterloader2/api"
 	"k8s.io/perf-tests/clusterloader2/pkg/config"
@@ -59,6 +62,35 @@ func TestDumpTestConfigUsesScenarioIdentifier(t *testing.T) {
 		filePath := filepath.Join(reportDir, "generatedConfig_density_"+identifier+".yaml")
 		if _, err := os.Stat(filePath); err != nil {
 			t.Errorf("expected config artifact %q: %v", filePath, err)
+		}
+	}
+}
+
+func TestReportSetupFailureWritesJUnit(t *testing.T) {
+	reportDir := t.TempDir()
+	junitPath := filepath.Join(reportDir, "junit.xml")
+	reporter := test.CreateSimpleReporter(junitPath, "ClusterLoaderV2")
+	reporter.BeginTestSuite()
+
+	setupErr := fmt.Errorf("Error while setting up prometheus stack: waiting for Prometheus stack to become healthy")
+	reportSetupFailure(reporter, "prometheus", "SetUpPrometheusStack", 2*time.Minute, setupErr)
+
+	if got := reporter.GetNumberOfFailedTestItems(); got != 1 {
+		t.Fatalf("GetNumberOfFailedTestItems() = %d, want 1", got)
+	}
+
+	content, err := os.ReadFile(junitPath)
+	if err != nil {
+		t.Fatalf("expected junit.xml at %q: %v", junitPath, err)
+	}
+	xmlStr := string(content)
+	for _, want := range []string{
+		`name="prometheus overall (SetUpPrometheusStack)"`,
+		`classname="ClusterLoaderV2"`,
+		"Error while setting up prometheus stack: waiting for Prometheus stack to become healthy",
+	} {
+		if !strings.Contains(xmlStr, want) {
+			t.Errorf("junit.xml missing %q; got:\n%s", want, xmlStr)
 		}
 	}
 }

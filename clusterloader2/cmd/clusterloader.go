@@ -362,12 +362,17 @@ func main() {
 	var testReporter test.Reporter
 
 	if !dryRun {
+		testReporter = test.CreateSimpleReporter(path.Join(clusterLoaderConfig.ReportDir, "junit.xml"), "ClusterLoaderV2")
+		testReporter.BeginTestSuite()
 		if clusterLoaderConfig.PrometheusConfig.EnableServer {
+			prometheusStart := time.Now()
 			if prometheusController, err = prometheus.NewController(&clusterLoaderConfig); err != nil {
+				reportSetupFailure(testReporter, "prometheus", "NewController", time.Since(prometheusStart), fmt.Errorf("Error while creating Prometheus Controller: %w", err))
 				klog.Exitf("Error while creating Prometheus Controller: %v", err)
 			}
 			prometheusFramework = prometheusController.GetFramework()
 			if err := prometheusController.SetUpPrometheusStack(); err != nil {
+				reportSetupFailure(testReporter, "prometheus", "SetUpPrometheusStack", time.Since(prometheusStart), fmt.Errorf("Error while setting up prometheus stack: %w", err))
 				klog.Exitf("Error while setting up prometheus stack: %v", err)
 			}
 			if clusterLoaderConfig.PrometheusConfig.TearDownServer {
@@ -388,8 +393,6 @@ func main() {
 		if err := metadata.Dump(f, path.Join(clusterLoaderConfig.ReportDir, "cl2-metadata.json")); err != nil {
 			klog.Errorf("Error while dumping metadata: %v", err)
 		}
-		testReporter = test.CreateSimpleReporter(path.Join(clusterLoaderConfig.ReportDir, "junit.xml"), "ClusterLoaderV2")
-		testReporter.BeginTestSuite()
 	}
 
 	var testScenarios []api.TestScenario
@@ -471,6 +474,16 @@ func runSingleTest(ctx test.Context) {
 	}
 	testConfigPath := ctx.GetTestScenario().ConfigPath
 	ctx.GetTestReporter().ReportTestFinish(time.Since(testStart), testConfigPath, errList)
+}
+
+func reportSetupFailure(testReporter test.Reporter, testName, stepName string, duration time.Duration, err error) {
+	if testReporter == nil {
+		return
+	}
+	errList := errors.NewErrorList(err)
+	testReporter.SetTestName(testName)
+	testReporter.ReportTestFinish(duration, stepName, errList)
+	testReporter.EndTestSuite()
 }
 
 func getTestID(ts *api.TestScenario) string {
