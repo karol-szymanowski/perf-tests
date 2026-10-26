@@ -17,8 +17,13 @@ limitations under the License.
 package prometheus
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/perf-tests/clusterloader2/pkg/config"
 	prom "k8s.io/perf-tests/clusterloader2/pkg/prometheus/clients"
 )
@@ -98,3 +103,142 @@ func TestValidatePrometheusFlagsUseExisting(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckTargetsReady(t *testing.T) {
+	t.Cleanup(func() { prom.ConfigureInClusterProxy(prom.DefaultProxyScheme, prom.DefaultServiceName) })
+	prom.ConfigureInClusterProxy("http", "prometheus-k8s")
+
+	tests := []struct {
+		name             string
+		handler          http.HandlerFunc
+		minActiveTargets int
+		minReadyTargets  int
+		wantReady        bool
+		wantErr          bool
+	}{
+		{
+			name: "all expected targets are up",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{
+					"status": "success",
+					"data": {
+						"activeTargets": [
+							{"labels": {"job": "prometheus"}, "health": "up"},
+							{"labels": {"job": "apiserver"}, "health": "up"}
+						]
+					}
+				}`))
+			},
+			minActiveTargets: 2,
+			minReadyTargets:  2,
+			wantReady:        true,
+			wantErr:          false,
+		},
+		{
+			name: "targets not all up returns false, nil",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{
+					"status": "success",
+					"data": {
+						"activeTargets": [
+							{"labels": {"job": "prometheus"}, "health": "up"},
+							{"labels": {"job": "apiserver"}, "health": "down"}
+						]
+					}
+				}`))
+			},
+			minActiveTargets: 2,
+			minReadyTargets:  2,
+			wantReady:        false,
+			wantErr:          false,
+		},
+		{
+			name: "not enough active targets returns false, nil",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{
+					"status": "success",
+					"data": {
+						"activeTargets": [
+							{"labels": {"job": "prometheus"}, "health": "up"}
+						]
+					}
+				}`))
+			},
+			minActiveTargets: 2,
+			minReadyTargets:  2,
+			wantReady:        false,
+			wantErr:          false,
+		},
+		{
+			name: "corrupted JSON returns false, nil to allow polling retry",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"status": "success", "data": {"activeTargets": [corrupted`))
+			},
+			minActiveTargets: 2,
+			minReadyTargets:  2,
+			wantReady:        false,
+			wantErr:          false,
+		},
+		{
+			name: "truncated stream / mid-stream connection reset returns false, nil",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				if hj, ok := w.(http.Hijacker); ok {
+					conn, bufrw, err := hj.Hijack()
+					if err == nil {
+						bufrw.WriteString("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"data\":{\"activeTargets\":[")
+						bufrw.Flush()
+						conn.Close()
+						return
+					}
+				}
+				w.Write([]byte(`{"data":{"activeTargets":[`))
+			},
+			minActiveTargets: 2,
+			minReadyTargets:  2,
+			wantReady:        false,
+			wantErr:          false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(tc.handler)
+			defer server.Close()
+
+			cfg := &restclient.Config{
+				Host: server.URL,
+			}
+			client, err := kubernetes.NewForConfig(cfg)
+			if err != nil {
+				t.Fatalf("failed to create client: %v", err)
+			}
+
+			ready, err := CheckTargetsReady(context.Background(), client, func(Target) bool { return true }, tc.minActiveTargets, tc.minReadyTargets, true)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("CheckTargetsReady() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if ready != tc.wantReady {
+				t.Errorf("CheckTargetsReady() ready = %v, wantReady %v", ready, tc.wantReady)
+			}
+
+			allReady, err := CheckAllTargetsReady(context.Background(), client, func(Target) bool { return true }, tc.minActiveTargets, true)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("CheckAllTargetsReady() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if allReady != tc.wantReady {
+				t.Errorf("CheckAllTargetsReady() ready = %v, wantReady %v", allReady, tc.wantReady)
+			}
+		})
+	}
+}
+

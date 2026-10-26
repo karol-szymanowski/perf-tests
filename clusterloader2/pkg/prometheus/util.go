@@ -90,7 +90,8 @@ func CheckTargetsReady(ctx context.Context, k8sClient kubernetes.Interface, sele
 
 	var response targetsResponse
 	if err := json.NewDecoder(reader).Decode(&response); err != nil {
-		return false, err // This shouldn't happen, return error.
+		klog.Warningf("error while decoding prometheus targets: %v", err)
+		return false, nil
 	}
 	nReady, nTotal := 0, 0
 	var exampleNotReadyTarget Target
